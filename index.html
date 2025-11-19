@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciamento de Mídia - FCJA</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <div id="login-screen" class="container">
+            <h1>Login</h1>
+            <form id="login-form">
+                <input type="email" id="email" placeholder="E-mail" required>
+                <input type="password" id="senha" placeholder="Senha" required>
+                
+                <div class="button-group">
+                    <button type="submit" id="login-button">Entrar</button>
+                    <button type="button" id="show-register-button" class="secondary-button">Criar Novo Usuário</button> 
+                </div>
+            </form>
+            <p id="message" class="error"></p>
+        </div>
+
+        <div id="register-screen" class="container hidden">
+            <h1>Criar Nova Conta</h1>
+            <form id="register-form">
+                <input type="email" id="register-email" placeholder="E-mail" required>
+                <input type="password" id="register-senha" placeholder="Senha" required>
+                
+                <div class="button-group">
+                    <button type="submit" id="register-button">Criar Conta</button> <button type="button" id="show-login-button" class="secondary-button">Já tenho conta (Voltar)</button> </div>
+            </form>
+            <p id="register-message" class="error"></p>
+        </div>
+
+        <div id="profile-screen" class="container hidden">
+            <h1>Dados do Perfil</h1>
+            <p>Seu e-mail: <strong id="user-email"></strong></p>
+            <p>Seu ID: <span id="user-id"></span></p>
+            <button id="logout-button" class="action-button red-bg">Sair</button> </div>
+
+        <div id="home-screen" class="container wide-container hidden">
+            
+            <div class="dashboard-header">
+                <h2>Painel de Mídias</h2>
+                <div class="header-actions">
+                    <button id="create-new-media-button" class="action-button green-bg">Criar nova mídia</button>
+                    <button id="home-logout-button" class="action-button red-bg">Deslogar</button> </div>
+            </div>
+
+            <p id="home-message" class="error"></p>
+            
+            <div id="media-cards-grid" class="media-grid">
+                <p id="no-media-message">Carregando mídias...</p>
+            </div>
+        </div>
+
+        <div id="media-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-button">&times;</span>
+                <h3 id="modal-title">Detalhes da Mídia</h3>
+                
+                <iframe id="media-iframe" class="media-iframe hidden" src="" frameborder="0" allowfullscreen></iframe>
+
+                <form id="create-edit-form">
+                    
+                    <input type="hidden" id="modal-media-id-input" name="id">
+
+                    <label for="modal-media-title-input">URL do Conteúdo (Embed/YouTube):</label> 
+                    <input type="text" id="modal-media-title-input" name="titulo" required>
+
+                    <label for="modal-media-description-input">Descrição/Anotações:</label>
+                    <textarea id="modal-media-description-input" name="descricao" rows="6" required></textarea>
+                    
+                    <p id="modal-message" class="error"></p>
+                    
+                    <button type="submit" id="modal-submit-button" class="action-button green-bg">Criar Mídia</button>
+                    <button type="button" id="modal-cancel-button" class="action-button secondary-button">Cancelar</button>
+                    
+                </form>
+            </div>
+        </div>
+        
+    </div>
+
+    <script type="module" src="src/services/api.js"></script>
+    <script type="module" src="src/auth.js"></script>
+    <script type="module" src="src/ui.js"></script>
+    <script type="module" src="src/media.js"></script>
+    <script type="module" src="src/listeners.js"></script>
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>
