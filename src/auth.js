@@ -1,8 +1,10 @@
 // src/auth.js
 
-// Importações: apiPost, apiGet, apiLogin e apiRegister vêm de './services/api.js'
+// Importações
 import { apiPost, apiGet, apiLogin, apiRegister } from './services/api.js'; 
 import { displayMessage, setButtonState, navigateTo, renderProfile, messageElement } from './ui.js';
+// 🔑 CORREÇÃO 1: Importa loadMediaList para carregar as mídias após a autenticação
+import { loadMediaList } from './media.js'; 
 
 // --- Gerenciamento Local do Token ---
 
@@ -47,6 +49,7 @@ export async function getMe() {
         return userData.info || userData; 
         
     } catch (error) {
+        // O erro 'Failed to fetch' que você viu aparece aqui.
         console.error('Erro ao buscar perfil:', error);
         return null; 
     }
@@ -56,10 +59,6 @@ export async function getMe() {
 /**
  * Lida com a submissão do formulário de Login (POST /login).
  */
-// src/auth.js
-
-// ... (Resto do arquivo omitido para focar na correção)
-
 export async function handleLogin(credentials, button, messageEl) {
     setButtonState(button, true, 'Entrar', 'Verificando...');
     displayMessage('Tentando login...', false, messageEl);
@@ -74,19 +73,19 @@ export async function handleLogin(credentials, button, messageEl) {
 
         const data = await response.json();
         
-        // 🔑 CORREÇÃO APLICADA: Agora verifica a chave 'access' (padrão Django/FastAPI)
         if (data.access) { 
             saveToken(data.access);
         } else {
-            // Se 'access' falhar, ainda tentamos 'access_token' como fallback
             if (data.access_token) {
-                 saveToken(data.access_token);
+                saveToken(data.access_token);
             } else {
-                 throw new Error('Login OK, mas o backend não retornou o token na chave "access" ou "access_token".');
+                throw new Error('Login OK, mas o backend não retornou o token na chave "access" ou "access_token".');
             }
         }
         
         displayMessage('Login realizado com sucesso!', false, messageEl);
+        
+        // 🔑 CORREÇÃO 2: Chama a verificação que, por sua vez, carrega as mídias.
         await checkAuthentication(); 
         
     } catch (error) {
@@ -96,8 +95,6 @@ export async function handleLogin(credentials, button, messageEl) {
         setButtonState(button, false, 'Entrar');
     }
 }
-
-// ... (Resto do arquivo omitido)
 
 
 /**
@@ -149,6 +146,9 @@ export async function checkAuthentication() {
     // Se há um usuário, renderiza o perfil e vai para a home.
     if (user) {
         renderProfile(user, DESTINATION_SCREEN); 
+        
+        // 🔑 CORREÇÃO 3: CHAMA O CARREGAMENTO DA LISTA DE MÍDIAS
+        loadMediaList(); 
     } else {
         // Caso contrário, vai para o login.
         navigateTo('login-screen');

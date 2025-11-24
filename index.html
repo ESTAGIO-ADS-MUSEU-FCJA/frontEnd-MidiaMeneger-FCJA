@@ -5,9 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gerenciamento de Mídia - FCJA</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="src/view-media.css"> 
 </head>
 <body>
     <div id="app">
+        
+        <div id="media-view-screen" class="container wide-container hidden">
+            <div id="media-view-container">
+                <p class="info" style="text-align: center; color: white;">Carregando mídia...</p>
+            </div>
+        </div>
+
         <div id="login-screen" class="container">
             <h1>Login</h1>
             <form id="login-form">
@@ -29,7 +37,9 @@
                 <input type="password" id="register-senha" placeholder="Senha" required>
                 
                 <div class="button-group">
-                    <button type="submit" id="register-button">Criar Conta</button> <button type="button" id="show-login-button" class="secondary-button">Já tenho conta (Voltar)</button> </div>
+                    <button type="submit" id="register-button">Criar Conta</button> 
+                    <button type="button" id="show-login-button" class="secondary-button">Já tenho conta (Voltar)</button> 
+                </div>
             </form>
             <p id="register-message" class="error"></p>
         </div>
@@ -38,7 +48,8 @@
             <h1>Dados do Perfil</h1>
             <p>Seu e-mail: <strong id="user-email"></strong></p>
             <p>Seu ID: <span id="user-id"></span></p>
-            <button id="logout-button" class="action-button red-bg">Sair</button> </div>
+            <button id="logout-button" class="action-button red-bg">Sair</button> 
+        </div>
 
         <div id="home-screen" class="container wide-container hidden">
             
@@ -46,7 +57,9 @@
                 <h2>Painel de Mídias</h2>
                 <div class="header-actions">
                     <button id="create-new-media-button" class="action-button green-bg">Criar nova mídia</button>
-                    <button id="home-logout-button" class="action-button red-bg">Deslogar</button> </div>
+                    <button id="redirect-qrcode-button" class="action-button secondary-button">Criar QR Code</button>
+                    <button id="home-logout-button" class="action-button red-bg">Deslogar</button> 
+                </div>
             </div>
 
             <p id="home-message" class="error"></p>
@@ -58,7 +71,7 @@
 
         <div id="media-modal" class="modal hidden">
             <div class="modal-content">
-                <span class="close-button">&times;</span>
+                <span id="modal-close" class="close-button">&times;</span>
                 <h3 id="modal-title">Detalhes da Mídia</h3>
                 
                 <iframe id="media-iframe" class="media-iframe hidden" src="" frameborder="0" allowfullscreen></iframe>
@@ -70,7 +83,7 @@
                     <label for="modal-media-title-input">URL do Conteúdo (Embed/YouTube):</label> 
                     <input type="text" id="modal-media-title-input" name="titulo" required>
 
-                    <label for="modal-media-description-input">Descrição/Anotações:</label>
+                    <label for="modal-media-description-input">Transcrição:</label>
                     <textarea id="modal-media-description-input" name="descricao" rows="6" required></textarea>
                     
                     <p id="modal-message" class="error"></p>
@@ -90,5 +103,6 @@
     <script type="module" src="src/media.js"></script>
     <script type="module" src="src/listeners.js"></script>
     <script type="module" src="src/main.js"></script>
+    <script type="module" src="src/redirecionar_qrcode.js"></script>
 </body>
 </html>

@@ -1,14 +1,17 @@
 // src/ui.js
 
-// Variáveis de escopo local (inicializadas em initializeUI)
-let loginScreen, profileScreen, registerScreen, homeScreen, mediaModal; 
+// Variáveis de escopo local (agora incluem a tela de visualização)
+let loginScreen, profileScreen, registerScreen, homeScreen, mediaModal, mediaViewScreen; 
 
 // Variáveis exportadas para que outros módulos possam usá-las como alvo
 export let messageElement, registerMessageElement, userEmailElement, userIdElement;
 export let homeMessageElement; 
 // Elementos do Dashboard e Modal
 export let mediaCardsGrid, modalTitle, createEditForm, modalMediaIdInput, modalMediaTitleInput, modalMediaDescriptionInput, modalSubmitButton, modalCancelButton, modalMessageElement; 
-export let mediaIframe; // NOVO: Para exibir o conteúdo da URL
+export let mediaIframe; 
+
+// 🔑 CORREÇÃO: Variável de Container de Visualização deve ser exportada
+export let mediaViewContainer; 
 
 
 /**
@@ -20,9 +23,14 @@ export function initializeUI() {
     profileScreen = document.getElementById('profile-screen');
     registerScreen = document.getElementById('register-screen');
     homeScreen = document.getElementById('home-screen'); 
+    // 🔑 CORREÇÃO: Captura da tela de visualização
+    mediaViewScreen = document.getElementById('media-view-screen'); 
 
     // Modal
     mediaModal = document.getElementById('media-modal');
+
+    // 🔑 CORREÇÃO: Captura do container de visualização
+    mediaViewContainer = document.getElementById('media-view-container');
 
     // Elementos de Feedback e Perfil
     messageElement = document.getElementById('message');
@@ -40,23 +48,25 @@ export function initializeUI() {
     modalMediaIdInput = document.getElementById('modal-media-id-input');
     modalMediaTitleInput = document.getElementById('modal-media-title-input');
     
-    // CORRIGIDO: Agora captura o ID do campo 'descricao'
+    // Captura o ID do campo 'descricao'
     modalMediaDescriptionInput = document.getElementById('modal-media-description-input'); 
     
     modalSubmitButton = document.getElementById('modal-submit-button');
     modalCancelButton = document.getElementById('modal-cancel-button');
     modalMessageElement = document.getElementById('modal-message'); 
 
-    // NOVO: Elemento Iframe
+    // Elemento Iframe
     mediaIframe = document.getElementById('media-iframe');
 }
 
 /**
  * Navega entre as telas da aplicação.
+ * Adicionada a nova tela 'mediaViewScreen' à lista de telas.
  */
 export function navigateTo(screenId) {
     const allScreens = [
         loginScreen, profileScreen, registerScreen, homeScreen,
+        mediaViewScreen // 🔑 CORREÇÃO: Incluída a nova tela aqui
     ];
     allScreens.forEach(screen => {
         if (screen) {
@@ -92,34 +102,33 @@ export function setButtonState(button, isDisabled, defaultText, loadingText = 'C
 }
 
 /**
- * Abre o Modal de Mídia, configurando-o para Criar, Editar ou Visualizar.
- * @param {boolean} isEditing - true se for modo edição.
- * @param {object} nota - O objeto de nota, se for edição ou visualização.
- * @param {boolean} isViewing - true se for modo visualização de conteúdo externo.
+ * Abre o Modal de Mídia, configurando-o para Criar ou Editar.
+ * A lógica de `isViewing` é mantida para compatibilidade, mas a visualização externa
+ * (via botão de olho) não a utiliza mais.
  */
 export function openMediaModal(isEditing = false, nota = null, isViewing = false) {
     if (!mediaModal || !createEditForm || !modalMediaTitleInput || !modalMediaDescriptionInput) return;
 
+    // Limpa mensagens
     displayMessage('', false, modalMessageElement);
     
-    // --- Lógica de Preenchimento e Estado ---
-    
-    const isReadOnly = isViewing;
+    const isReadOnly = isViewing && !isEditing;
     
     // Define o estado de leitura dos campos
     modalMediaTitleInput.readOnly = isReadOnly;
     modalMediaDescriptionInput.readOnly = isReadOnly;
     
-    // Garante que o formulário está visível/escondido e limpo
+    // Garante que o formulário está visível/escondido
     createEditForm.classList.toggle('hidden', isViewing && !isEditing);
-    modalSubmitButton.classList.remove('hidden'); // Começa mostrando o botão
+    modalSubmitButton.classList.toggle('hidden', isViewing && !isEditing);
     
-    // Gerencia a visibilidade do Iframe (visualização externa)
+    // O iframe só deve ser visível se estivermos em modo de visualização interna
     if (mediaIframe) {
-        mediaIframe.classList.toggle('hidden', !isViewing);
+        mediaIframe.classList.toggle('hidden', !isViewing); 
+        mediaIframe.src = isViewing && nota && nota.titulo ? nota.titulo : '';
     }
     
-    // Preenche os campos (se for Edição ou Visualização)
+    // Preenche os campos (se for Edição)
     if (nota) {
         modalMediaIdInput.value = nota.id || '';
         modalMediaTitleInput.value = nota.titulo || ''; 
@@ -131,15 +140,13 @@ export function openMediaModal(isEditing = false, nota = null, isViewing = false
 
     // --- Configuração do Modo ---
     
-    if (isViewing) {
-        modalTitle.textContent = 'Visualizando Mídia ID: ' + nota.id;
-        modalSubmitButton.classList.add('hidden'); // Esconde submissão na visualização
-        modalCancelButton.textContent = 'Fechar';
-    } else if (isEditing) {
+    if (isEditing) {
         modalTitle.textContent = 'Editar Mídia ID: ' + nota.id;
         modalSubmitButton.textContent = 'Salvar Alterações';
         modalSubmitButton.className = 'action-button orange-bg';
         modalCancelButton.textContent = 'Cancelar';
+    } else if (isViewing) {
+        modalTitle.textContent = 'Visualizar Mídia ID: ' + nota.id;
     } else { // Modo Criação
         modalTitle.textContent = 'Criar Nova Mídia';
         modalSubmitButton.textContent = 'Criar Mídia';

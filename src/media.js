@@ -1,8 +1,6 @@
-// src/media.js
-
 import { getToken, removeToken, checkAuthentication } from './auth.js';
-// CORREÇÃO 1: Adicionando apiEditMedia para a funcionalidade PUT (Edição)
-import { apiGetMedia, apiCreateMedia, apiDeleteMedia, apiEditMedia } from './services/api.js'; 
+// ⚠️ CORREÇÃO DE IMPORTAÇÃO: Garante API_BASE_URL está disponível.
+import { apiGetMedia, apiCreateMedia, apiDeleteMedia, apiEditMedia, API_BASE_URL, apiGetPublicMediaById } from './services/api.js'; 
 import { 
     mediaCardsGrid, 
     displayMessage, 
@@ -17,14 +15,21 @@ import {
     modalSubmitButton, 
     createEditForm, 
     setButtonState,
-    mediaIframe
+    mediaIframe,
+    mediaViewContainer,
+    navigateTo
+
 } from './ui.js'; 
 
+// Variável para armazenar a lista de mídias carregadas (CRUCIAL para a Edição!)
+let mediaList = [];
 
-// --- Funções Auxiliares de Tratamento de URL ---
+// Variável para armazenar o manipulador de eventos e poder removê-lo
+let mediaCardActionHandler = null;
 
 /**
- * Converte URLs padrão do YouTube para o formato embed.
+ * Converte URLs padrão, URLs curtas e URLs de Shorts do YouTube
+ * para o formato embed.
  */
 function convertToEmbedUrl(url) {
     if (!url || typeof url !== 'string') {
@@ -38,26 +43,81 @@ function convertToEmbedUrl(url) {
     
     let videoId = null;
     
-    // 2. Tenta extrair o ID de URLs watch?v=ID
-    const watchMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|\w\/\w\/|v=|watch\?v=))([^&?%#]+)/);
-    if (watchMatch && watchMatch[1]) {
-        videoId = watchMatch[1];
+    // --- 🔑 Trata URLs do tipo /shorts/ ---
+    const shortsMatch = url.match(/youtube\.com\/shorts\/([^&?%#]+)/);
+    if (shortsMatch && shortsMatch[1]) {
+        videoId = shortsMatch[1];
     } 
+    // ---------------------------------------------
     
-    // 3. Tenta extrair o ID de URLs curtas youtu.be/ID
+    // 2. Tenta extrair o ID de URLs watch?v=ID (URLs normais)
     else {
-        const shortMatch = url.match(/youtu\.be\/([^&?%#]+)/);
-        if (shortMatch && shortMatch[1]) {
-            videoId = shortMatch[1];
+        const watchMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|\w\/\w\/|v=|watch\?v=))([^&?%#]+)/);
+        if (watchMatch && watchMatch[1]) {
+            videoId = watchMatch[1];
+        } 
+        
+        // 3. Tenta extrair o ID de URLs curtas youtu.be/ID
+        else {
+            const shortMatch = url.match(/youtu\.be\/([^&?%#]+)/);
+            if (shortMatch && shortMatch[1]) {
+                videoId = shortMatch[1];
+            }
         }
     }
 
     if (videoId) {
-        // Constrói a URL Embedded
+        // Constrói a URL Embedded (funciona para Shorts e vídeos normais)
         return `https://www.youtube.com/embed/${videoId}`;
     }
 
+    // Se não for YouTube, retorna a URL original
     return url; 
+}
+
+
+/**
+ * Constrói o HTML completo da página de visualização (Vídeo Vertical + Descrição),
+ * utilizando um arquivo CSS externo para maior estabilidade em mobile.
+ * ⚠️ ATENÇÃO: Esta função não está sendo usada no fluxo atual (renderMediaContent) 
+ * mas é mantida aqui para referência, caso você opte por renderizar a página completa
+ * em vez de apenas o HTML interno.
+ */
+function buildViewPageHTML(embedUrl, descricao) {
+    // Escapa a descrição para garantir que quebras de linha sejam respeitadas
+    const safeDescription = (descricao || 'Nenhuma descrição fornecida.').replace(/\n/g, '<br>');
+    
+    const cssPath = "./src/view-media.css"; 
+    
+    return `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+            <title>Visualizar Mídia Vertical</title>
+            
+            <link rel="stylesheet" href="${cssPath}"> 
+            
+        </head>
+        <body>
+            <div class="main-content-wrapper">
+                <div class="video-container">
+                    <iframe 
+                        src="${embedUrl}" 
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowfullscreen>
+                    </iframe>
+                </div>
+                <div class="description-area">
+                    <h2>Transcrição:</h2>
+                    <p>${safeDescription}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
 }
 
 
@@ -76,7 +136,7 @@ function createMediaCardHTML(nota) {
     const shortDescription = descricao.length > 50 ? descricao.substring(0, 50) + '...' : descricao;
     
     return `
-        <div class="media-card" data-media-id="${id}">
+        <div class="media-card" data-id="${id}">
             <div class="media-card-info">
                 <strong>ID:</strong> <span>${id}</span>
                 <strong>URL:</strong> <span>${shortUrl}</span>
@@ -117,9 +177,8 @@ function renderMediaList(notasList) {
 
 /**
  * Função principal para buscar e exibir todas as mídias (GET).
- * * ATENÇÃO: Mudança feita aqui para remover o 'export' e evitar o erro de exportação duplicada.
  */
-async function loadMediaList() {
+export async function loadMediaList() {
     const token = getToken();
     if (!token) {
         displayMessage('Erro: Token não encontrado. Faça o login novamente.', true, homeMessageElement);
@@ -140,15 +199,19 @@ async function loadMediaList() {
         }
 
         if (!response.ok) {
-            // ... (Lógica de erro)
+            const errorText = await response.text();
+            throw new Error(`Falha ao carregar mídias: ${errorText || response.statusText}`);
         }
 
         let notasList = await response.json();
         
-        // Ajusta para o formato esperado (garante que notasList é um array)
+        // Armazena a lista na variável de escopo para uso posterior (Edição, Deleção)
         if (typeof notasList === 'object' && !Array.isArray(notasList)) {
-             notasList = notasList.items && Array.isArray(notasList.items) ? notasList.items : [];
+            notasList = notasList.items && Array.isArray(notasList.items) ? notasList.items : [];
         }
+
+        // 🔑 ESSENCIAL PARA A EDIÇÃO: Armazenar a lista atualizada
+        mediaList = notasList;
         
         renderMediaList(notasList);
         displayMessage(`Total de mídias carregadas: ${notasList.length || 0}.`, false, homeMessageElement);
@@ -166,7 +229,7 @@ async function loadMediaList() {
 /**
  * Lida com a submissão do formulário de criação/edição (POST/PUT).
  */
-async function handleCreateOrEditMedia(e) {
+export async function handleCreateOrEditMedia(e) { 
     e.preventDefault();
     
     const token = getToken();
@@ -184,7 +247,7 @@ async function handleCreateOrEditMedia(e) {
     try {
         let response;
         if (isEditing) {
-            // AÇÃO DE EDIÇÃO (PUT) - Implementado
+            // AÇÃO DE EDIÇÃO (PUT)
             const mediaId = modalMediaIdInput.value;
             response = await apiEditMedia(mediaId, data, token);
         } else {
@@ -197,24 +260,19 @@ async function handleCreateOrEditMedia(e) {
         }
 
         if (!response.ok) {
-             // Tenta ler o erro, se houver
              const errorText = await response.text();
              let errorMessage = `Falha ao salvar: Status ${response.status}`;
              try {
                  const errorData = JSON.parse(errorText);
-                 errorMessage = errorData.detail || errorData.message || errorMessage;
-             } catch {
-                 if (errorText) errorMessage = errorText;
-             }
+                 errorMessage = errorData.detail || errorMessage;
+             } catch {}
              throw new Error(errorMessage);
         }
 
-        const result = await response.json();
-
-        displayMessage(`Mídia salva com sucesso! ID: ${result.id || 'N/A'}`, false, homeMessageElement);
-        closeMediaModal();
+        displayMessage(isEditing ? 'Mídia editada com sucesso!' : 'Mídia criada com sucesso!', false, modalMessageElement);
         
-        await loadMediaList(); 
+        closeMediaModal();
+        await loadMediaList(); // Atualiza a lista após o sucesso
 
     } catch (error) {
         console.error('Erro ao salvar mídia:', error);
@@ -225,88 +283,94 @@ async function handleCreateOrEditMedia(e) {
 }
 
 /**
- * Lida com a visualização do conteúdo (Iframe Embed).
+ * Lida com as ações de clique nos botões de cada card (Editar, Deletar, Visualizar).
  */
-function handleViewMedia(nota) {
-    // 1. Prepara o modal para visualização
-    modalTitle.textContent = 'Visualizando Conteúdo';
-    modalMediaTitleInput.value = nota.titulo;
-    modalMediaDescriptionInput.value = nota.descricao;
+export function handleMediaCardAction(e, notasList) {
+    const target = e.target.closest('.card-action-button');
+    if (!target) return;
+
+    const action = target.dataset.action;
+    const id = target.dataset.id;
     
-    // 2. Converte a URL para o formato embed do YouTube e carrega no iframe
-    const embedUrl = convertToEmbedUrl(nota.titulo);
-    if (mediaIframe) {
-        mediaIframe.src = embedUrl;
-    }
-    
-    // 3. Abre o modal no modo visualização (isEditing=false, isViewing=true)
-    openMediaModal(false, nota, true); 
+    // Usa a lista passada como argumento (que é a mediaList atualizada)
+    const nota = notasList.find(n => n.id === id); 
 
-    displayMessage(`Visualizando: ${nota.titulo.substring(0, 50)}...`, false, homeMessageElement);
-}
-
-/**
- * Lida com a abertura do modal em modo edição (PUT).
- */
-function handleEditMedia(nota) {
-    // 1. Garante que o iframe está invisível
-    if (mediaIframe) {
-        mediaIframe.src = '';
-    }
-    // 2. Pré-preenche os campos
-    modalMediaIdInput.value = nota.id;
-    modalMediaTitleInput.value = nota.titulo;
-    modalMediaDescriptionInput.value = nota.descricao;
-
-    // 3. Abre o modal no modo edição (isEditing=true, isViewing=false)
-    openMediaModal(true, nota, false); 
-}
-
-
-/**
- * Lida com a deleção de uma nota (DELETE /notas/deletar{id}).
- */
-async function handleDeleteMedia(nota) {
-    if (!confirm(`Tem certeza que deseja DELETAR a Mídia ID ${nota.id}?`)) {
+    if (!nota) {
+        displayMessage('Mídia não encontrada.', true, homeMessageElement);
         return;
     }
 
+    switch (action) {
+        case 'delete':
+            // Lógica de confirmação e exclusão (DELETE)
+            if (confirm(`Tem certeza que deseja deletar a mídia ID: ${id}?`)) {
+                handleDeleteMedia(id);
+            }
+            break;
+        
+        case 'edit':
+            // 🔑 CORREÇÃO PRINCIPAL: Usa a variável 'nota' (a mídia encontrada) 
+            // no lugar da variável indefinida 'mediaItem'.
+            openMediaModal(true, nota); // isEditing = true, nota = objeto completo
+            break;
+
+
+        case 'view':
+            if (id) {
+                // 1. A URL base é o próprio domínio do seu aplicativo em produção
+                const DEPLOY_BASE_URL = window.location.origin; 
+                
+                // 2. Constrói a URL Estável que será usada no QR Code:
+                const publicViewUrl = `${DEPLOY_BASE_URL}?mediaId=${id}`;
+
+                // 3. Abre a nova janela, que será roteada pelo main.js
+                const newWindow = window.open(publicViewUrl, '_blank');
+                
+                if (!newWindow) {
+                    alert('Seu navegador bloqueou o pop-up.');
+                }
+                
+                // O valor de 'publicViewUrl' é o link final para o seu QR Code.
+            } else {
+                displayMessage('ID da mídia não encontrado.', true, homeMessageElement);
+            }
+            break;
+    }
+}
+
+/**
+ * Lida com a exclusão de uma nota (DELETE).
+ */
+async function handleDeleteMedia(id) {
     const token = getToken();
     if (!token) {
-        displayMessage('Erro de autenticação.', true, homeMessageElement);
+        removeToken();
         checkAuthentication();
         return;
     }
 
-    displayMessage(`Deletando Mídia ID ${nota.id}...`, false, homeMessageElement);
+    displayMessage('Deletando mídia...', false, homeMessageElement);
 
     try {
-        const response = await apiDeleteMedia(nota.id, token);
+        const response = await apiDeleteMedia(id, token);
 
         if (response.status === 401 || response.status === 403) {
-            removeToken();
-            checkAuthentication();
-            displayMessage('Sessão expirada. Faça o login novamente.', true, homeMessageElement);
-            return;
+            throw new Error('Sessão expirada. Faça o login novamente.');
         }
 
         if (!response.ok) {
-            // Tenta ler o erro, se houver
-            const errorText = await response.text();
-            let errorMessage = `Falha ao deletar: Status ${response.status}`;
-            try {
-                const errorData = JSON.parse(errorText);
-                errorMessage = errorData.detail || errorData.message || errorMessage;
-            } catch {
-                if (errorText) errorMessage = errorText;
-            }
-            throw new Error(errorMessage);
+             const errorText = await response.text();
+             let errorMessage = `Falha ao deletar: Status ${response.status}`;
+             try {
+                 const errorData = JSON.parse(errorText);
+                 errorMessage = errorData.detail || errorMessage;
+             } catch {}
+             throw new Error(errorMessage);
         }
-        
-        displayMessage(`Mídia ID ${nota.id} deletada com sucesso.`, false, homeMessageElement);
-        
-        await loadMediaList(); 
 
+        displayMessage(`Mídia ID ${id} deletada com sucesso!`, false, homeMessageElement);
+        await loadMediaList(); // Recarrega a lista
+        
     } catch (error) {
         console.error('Erro ao deletar mídia:', error);
         displayMessage(error.message, true, homeMessageElement);
@@ -314,52 +378,61 @@ async function handleDeleteMedia(nota) {
 }
 
 /**
- * Função para configurar listeners de clique em todos os botões de ação dos cards.
+ * Adiciona listeners de clique ao grid de cards, delegando as ações.
  */
 function setupMediaCardListeners(notasList) {
-    if (!mediaCardsGrid) return;
 
-    // Adiciona listener diretamente no grid para capturar todos os cliques nos botões
-    // O listener é removido e re-adicionado a cada renderização para evitar duplicação.
-    // É uma prática mais simples para este cenário.
-
-    // Remove o listener existente (se houver, para evitar duplicação)
-    const oldListener = mediaCardsGrid.mediaListener;
-    if (oldListener) {
-        mediaCardsGrid.removeEventListener('click', oldListener);
-    }
-
-    const newListener = (e) => {
-        const button = e.target.closest('.card-action-button');
-        if (!button) return;
-
-        const action = button.dataset.action;
-        const id = button.dataset.id;
-        const nota = notasList.find(m => String(m.id) === id); 
-
-        if (!nota) {
-            displayMessage(`Nota ID ${id} não encontrada.`, true, homeMessageElement);
-            return;
-        }
-
-        switch (action) {
-            case 'view':
-                handleViewMedia(nota);
-                break;
-            case 'edit':
-                handleEditMedia(nota);
-                break;
-            case 'delete':
-                handleDeleteMedia(nota);
-                break;
-            default:
-                break;
-        }
-    };
-
-    mediaCardsGrid.addEventListener('click', newListener);
-    mediaCardsGrid.mediaListener = newListener; // Armazena a referência para poder remover depois
+    // Cria um novo handler com a lista atualizada
+    // O argumento 'notasList' garante que o handler usa o array de mídias mais recente.
+    mediaCardActionHandler = (e) => handleMediaCardAction(e, notasList); 
+    mediaCardsGrid.addEventListener('click', mediaCardActionHandler);
 }
 
-// CORREÇÃO 2: Exportação única no final do módulo.
-export { loadMediaList, handleCreateOrEditMedia };
+/**
+ * Busca a mídia por ID e renderiza o conteúdo diretamente na tela (Para QR Code).
+ */
+export async function renderMediaContent(id) {
+    if (!mediaViewContainer) return;
+    
+    // Navega para a tela de visualização (se o main.js não o fez)
+    navigateTo('media-view-screen'); 
+    
+    mediaViewContainer.innerHTML = '<p class="info" style="text-align: center; color: white;">Carregando mídia...</p>';
+
+    try {
+        // Chamada ao endpoint público /notasnotauth/{id}
+        const response = await apiGetPublicMediaById(id);
+        
+        if (!response.ok) {
+            let errorText = await response.text();
+            throw new Error(`Falha ao carregar mídia: ${response.status} - ${errorText || response.statusText}.`);
+        }
+        
+        const nota = await response.json();
+        const embedUrl = convertToEmbedUrl(nota.titulo);
+        
+        // Renderiza o HTML no container
+        const safeDescription = (nota.descricao || 'Nenhuma descrição fornecida.').replace(/\n/g, '<br>');
+        
+        mediaViewContainer.innerHTML = `
+            <div class="main-content-wrapper">
+                <div class="video-container">
+                    <iframe 
+                        src="${embedUrl}" 
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowfullscreen>
+                    </iframe>
+                </div>
+                <div class="description-area">
+                    <h2>Descrição/Transcrição da Mídia</h2>
+                    <p>${safeDescription}</p>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error("Erro ao carregar mídia pública:", error);
+        mediaViewContainer.innerHTML = `<p class="error" style="text-align: center;">Erro: ${error.message}</p>`;
+    }
+}

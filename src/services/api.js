@@ -95,7 +95,7 @@ export async function apiEditMedia(id, data, token) {
  */
 export async function apiDeleteMedia(id, token) {
     // DELETE /notas/deletar{id}
-    const response = await fetch(`${API_BASE_URL}/notas/deletar${id}`, { 
+    const response = await fetch(`${API_BASE_URL}/notas/deletar/${id}`, { 
         method: 'DELETE',
         headers: {
             'Authorization': `Bearer ${token}`, 
@@ -103,4 +103,17 @@ export async function apiDeleteMedia(id, token) {
         },
     });
     return response;
+}
+/**
+* Busca uma mídia por ID SEM exigir o token (endpoint público: /notasnotauth/{id}).
+ */
+export async function apiGetPublicMediaById(id) {
+    // 🔑 CORREÇÃO AQUI: Usando o endpoint fornecido
+    const url = `${API_BASE_URL}/notasnotauth/${id}`; 
+    return fetch(url, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    });
 }

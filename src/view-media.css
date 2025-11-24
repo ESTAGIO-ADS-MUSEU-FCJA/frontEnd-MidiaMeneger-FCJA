@@ -1,0 +1,75 @@
+/*
+ * view-media.css: Estilos para visualização de mídia vertical em nova aba
+ * Garante layout responsivo e proporção 9:16.
+ */
+
+/* ZERA TUDO E FORÇA LARGURA TOTAL */
+body, html {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    width: 100vw; /* Força largura total da Viewport */
+    min-height: 100vh;
+    font-family: Arial, sans-serif;
+    display: flex; 
+    flex-direction: column;
+    align-items: center;
+}
+
+/* Container Principal (ocupa 100% da largura, com limite) */
+.main-content-wrapper {
+    width: 100%;
+    max-width: 400px;
+    background-color: #111111;
+    color: white;
+    padding: 0;
+}
+
+/* Container do Vídeo: TÉCNICA MAIS ROBUSTA DE ASPECT RATIO VERTICAL */
+.video-container {
+    position: relative;
+    /* Proporção 9:16 (vertical): (16 / 9) * 100% = 177.77% */
+    padding-bottom: 177.77%; 
+    height: 0; 
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Iframe (preenche o container 100%) */
+.video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* Área da Descrição */
+.description-area {
+    padding: 20px;
+    text-align: left;
+    background-color: #222222; 
+}
+.description-area h2 {
+    color: white;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 5px;
+    margin-top: 0;
+    margin-bottom: 15px;
+    text-align: center;
+}
+.description-area p {
+    color: #eeeeee;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    text-align: justify;
+}
+
+/* Media Query para telas grandes */
+@media (min-width: 401px) {
+    .main-content-wrapper {
+        margin: 20px auto; 
+        border-radius: 8px; 
+    }
+}
